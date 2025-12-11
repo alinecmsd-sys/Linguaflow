@@ -1,6 +1,7 @@
 export enum Tab {
   VOCABULARY = 'VOCABULARY',
-  PHRASES = 'PHRASES'
+  PHRASES = 'PHRASES',
+  EXERCISES = 'EXERCISES'
 }
 
 export interface LearningItem {
@@ -28,4 +29,19 @@ export interface SourcePhraseLesson {
   id: number;
   title: string;
   phrases: string[];
+}
+
+// Exercise specific types
+export interface ExerciseItem {
+  id: string;
+  parts: [string, string]; // Text before and after the gap
+  answer: string;          // The correct verb (conjugated form found in text)
+  fullPhrase: string;
+  translation: string;
+}
+
+export interface ExerciseLesson {
+  id: number;
+  title: string;
+  items: ExerciseItem[];
 }

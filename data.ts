@@ -1,4 +1,4 @@
-import { Lesson, Tab, SourceVocabLesson, SourcePhraseLesson } from './types';
+import { Lesson, Tab, SourceVocabLesson, SourcePhraseLesson, ExerciseLesson, ExerciseItem } from './types';
 
 // Map for translations since source JSON is only English
 const TRANSLATIONS: Record<string, string> = {
@@ -282,3 +282,108 @@ export const PHRASE_LESSONS: Lesson[] = RAW_PHRASES.lessons.map((l: SourcePhrase
   type: Tab.PHRASES,
   items: l.phrases.map(p => ({ original: p, translation: getTranslation(p) }))
 }));
+
+// --- Exercise Logic ---
+
+// Common conjugations and variations
+const VERB_FORMS: Record<string, string[]> = {
+  "eat": ["eat", "eats", "eating", "ate"],
+  "drink": ["drink", "drinks", "drinking", "drank"],
+  "like": ["like", "likes", "liking", "liked"],
+  "have": ["have", "has", "having", "had"],
+  "study": ["study", "studies", "studying", "studied"],
+  "work": ["work", "works", "working", "worked"],
+  "speak": ["speak", "speaks", "speaking", "spoke"],
+  "play": ["play", "plays", "playing", "played"],
+  "want": ["want", "wants", "wanting", "wanted"],
+  "go": ["go", "goes", "going", "went"],
+  "buy": ["buy", "buys", "buying", "bought"],
+  "sell": ["sell", "sells", "selling", "sold"],
+  "sleep": ["sleep", "sleeps", "sleeping", "slept"]
+};
+
+// Helper to clean vocabulary (remove particles like 'to', 'a', 'an')
+const cleanVocabItem = (item: string): string => {
+  return item.replace(/^(to |a |an )/i, '').trim();
+};
+
+const generateExercises = (): ExerciseLesson[] => {
+  return RAW_PHRASES.lessons.map(phraseLesson => {
+    // 1. Get all potential target words (verbs + vocabulary) for this lesson
+    const vocabLesson = RAW_VOCAB.lessons.find(v => v.id === phraseLesson.id);
+    if (!vocabLesson) return { id: phraseLesson.id, title: phraseLesson.title, items: [] };
+
+    // Create a list of target words to look for in sentences
+    const targets = [
+      ...vocabLesson.verbs.map(v => ({ word: v, isVerb: true })),
+      ...vocabLesson.vocabulary.map(v => ({ word: cleanVocabItem(v), isVerb: false }))
+    ];
+
+    const items: ExerciseItem[] = [];
+
+    // 2. Process each phrase
+    phraseLesson.phrases.forEach(phrase => {
+      // Find all matches for any target word
+      const matches: { start: number; end: number; matchedText: string; }[] = [];
+
+      targets.forEach(target => {
+        // Determine forms to check
+        let forms: string[] = [];
+        if (target.isVerb && VERB_FORMS[target.word]) {
+          forms = VERB_FORMS[target.word];
+        } else {
+          // Simple pluralization/variation for nouns/others
+          forms = [target.word, target.word + 's', target.word + 'es'];
+          if (target.word.endsWith('y')) {
+             forms.push(target.word); // e.g. "grocery" 
+             // Very basic heuristic for plurals not in our simple list
+             forms.push(target.word.slice(0, -1) + 'ies'); 
+          }
+        }
+
+        forms.forEach(form => {
+            // Regex for whole word match, case insensitive
+            const regex = new RegExp(`\\b${form}\\b`, 'gi');
+            let match;
+            while ((match = regex.exec(phrase)) !== null) {
+                matches.push({
+                    start: match.index,
+                    end: match.index + match[0].length,
+                    matchedText: match[0]
+                });
+            }
+        });
+      });
+
+      // 3. Select a match to be the gap
+      if (matches.length > 0) {
+        // Sort by length desc to prefer longer matches (e.g. "ice cream" over "ice")
+        matches.sort((a, b) => b.matchedText.length - a.matchedText.length);
+        
+        // Pick one randomly to vary the exercises each time the app loads
+        // or just pick the first valid one if we want consistency.
+        // Let's pick randomly from top matches to add variety if a sentence has multiple key terms.
+        const selected = matches[Math.floor(Math.random() * matches.length)];
+
+        const pre = phrase.substring(0, selected.start);
+        const post = phrase.substring(selected.end);
+        
+        items.push({
+          id: `${phraseLesson.id}-${phrase}-${selected.start}`,
+          parts: [pre, post],
+          answer: selected.matchedText, // The exact word found in text
+          fullPhrase: phrase,
+          translation: getTranslation(phrase)
+        });
+      }
+    });
+
+    return {
+      id: phraseLesson.id,
+      title: phraseLesson.title,
+      items
+    };
+  });
+};
+
+export const EXERCISE_LESSONS: ExerciseLesson[] = generateExercises();

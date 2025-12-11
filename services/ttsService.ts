@@ -106,6 +106,9 @@ export const playTextToSpeech = async (text: string): Promise<void> => {
 const playBuffer = (ctx: AudioContext, buffer: AudioBuffer) => {
   const source = ctx.createBufferSource();
   source.buffer = buffer;
+  // Slow down playback to 90% speed.
+  // This helps beginners hear words clearly without distorting the voice too much.
+  source.playbackRate.value = 0.9;
   source.connect(ctx.destination);
   source.start();
 };
@@ -115,7 +118,8 @@ const playNativeTTS = (text: string) => {
     window.speechSynthesis.cancel(); // Stop current
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-US';
-    utterance.rate = 0.9; // Slightly slower for learning
+    // Set rate to 0.75 for slower, clearer pronunciation
+    utterance.rate = 0.75; 
     window.speechSynthesis.speak(utterance);
   } else {
     console.error("No TTS available");
